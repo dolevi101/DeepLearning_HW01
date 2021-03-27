@@ -18,9 +18,18 @@ def linear_forward(A, W, b):
     return Z, linear_cache
 
 
-# Press the green button in the gutter to run the script.
+def softmax(Z):
+    sum_z = sum(np.exp(Z))
+    A = [np.exp(z)/sum_z for z in Z]
+    activation_cache = {"Z": Z}
+    return A, activation_cache
+
+
 if __name__ == '__main__':
     result = initialize_parameters([3, 4, 1])
-    print(result["w"])
-    print()
-    print(result["b"])
+    #print(result["w"])
+    #print()
+    #print(result["b"])
+    a = [1, 2, 4]
+    r = softmax(a)
+    print(sum(r[0]))
