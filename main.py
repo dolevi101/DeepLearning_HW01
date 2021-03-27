@@ -25,6 +25,11 @@ def softmax(Z):
     return A, activation_cache
 
 
+def relu(Z):
+    A = [max(0, z) for z in Z]
+    activation_cache = {"Z": Z}
+    return A, activation_cache
+
 if __name__ == '__main__':
     result = initialize_parameters([3, 4, 1])
     #print(result["w"])
