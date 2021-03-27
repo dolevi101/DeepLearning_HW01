@@ -1,16 +1,20 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import numpy as np
+from numpy import random
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+def initialize_parameters(layer_dims):
+    dict = {"w": [], "b": []}
+    dict["w"].append(np.random.rand(1))
+    dict["b"].append(np.zeros(1))
+    for i in range(1, len(layer_dims)):
+        dict["w"].append(np.random.rand(layer_dims[i], layer_dims[i-1]))
+        dict["b"].append(np.zeros(layer_dims[i]))
+    return dict
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    result = initialize_parameters([3,4,1])
+    print(result["w"])
+    print()
+    print(result["b"])
