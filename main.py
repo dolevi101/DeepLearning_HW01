@@ -42,7 +42,7 @@ def linear_activation_forward(A_prev, W, B, activation):
     return A, cache
 
 
-def L_model_forward(X, parameters, use_batchnorm):
+def l_model_forward(X, parameters, use_batchnorm):
     # TODO
     cache = None
     AL = None
@@ -113,6 +113,7 @@ def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size):
     costs = None
 
     return parameters, costs
+
 
 def predict(X, Y, parameters):
     # TODO
