@@ -2,6 +2,13 @@ import numpy as np
 
 
 def initialize_parameters(layer_dims):
+    # TODO This should be implemented as
+    # {
+    #     "W1": ...
+    #     "b1": ...
+    #     "W2": ...
+    #     "b2": ...
+    # }
     params_dict = {"w": [], "b": []}
     params_dict["w"].append(np.random.randn(1))
     params_dict["b"].append(np.zeros(1))
@@ -43,11 +50,23 @@ def linear_activation_forward(A_prev, W, B, activation):
 
 
 def l_model_forward(X, parameters, use_batchnorm):
-    # TODO
-    cache = None
-    AL = None
+    caches = list()
+    A = X
+    L = len(parameters["w"])
 
-    return AL, cache
+    for layer_num in range(1, L):
+        a_prev = A
+        w = parameters["w"][layer_num]
+        b = parameters["b"][layer_num]
+        A, tmp_cache = linear_activation_forward(a_prev, w, b, activation='relu')
+
+        caches.append(tmp_cache)
+
+    w = parameters["w"][L]
+    b = parameters["b"][L]
+    AL, tmp_cache = linear_activation_forward(A, w, b, activation='sigmoid')
+
+    return AL, caches
 
 
 def compute_cost(AL, Y):
