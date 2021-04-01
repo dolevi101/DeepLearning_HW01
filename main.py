@@ -87,11 +87,15 @@ def apply_batchnorm(A):
 
     return NA, batchnorm_cache
 
+
 def linear_backward(dZ, cache):
-    # TODO
-    dA_prev = None
-    dW = None
-    db = None
+    A_prev = cache['A']
+    W = cache['W']
+    M = A_prev.shape[0]
+
+    dA_prev = np.dot(W.T, dZ)
+    dW = (1 / M) * dZ.dot(A_prev.T)
+    db = (1 / M) * np.sum(dZ, axis=0, keepdims=True)
 
     return dA_prev, dW, db
 
