@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 
 
@@ -71,16 +73,19 @@ def l_model_forward(X, parameters, use_batchnorm):
 
 def compute_cost(AL, Y):
     # TODO
-    cost = None
     return cost
 
 
 def apply_batchnorm(A):
-    # TODO
-    NA = None
+    epsilon = sys.float_info.epsilon
+    mean = np.mean(A, axis=0)
+    variance = np.var(A, axis=0)
+    A_centered = A - mean
 
-    return NA
+    NA = A_centered / np.sqrt(variance + epsilon)
+    batchnorm_cache = {'activation': A, 'activation_norm': NA, 'mean': mean, 'var': variance}
 
+    return NA, batchnorm_cache
 
 def linear_backward(dZ, cache):
     # TODO
