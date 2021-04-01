@@ -67,6 +67,7 @@ def l_model_forward(X, parameters, use_batchnorm):
     w = parameters["w"][L]
     b = parameters["b"][L]
     AL, tmp_cache = linear_activation_forward(A, w, b, activation='sigmoid')
+    caches.append(tmp_cache)
 
     return AL, caches
 
@@ -101,10 +102,15 @@ def linear_backward(dZ, cache):
 
 
 def linear_activation_backward(dA, cache, activation):
-    # TODO
-    dA_prev = None
-    dW = None
-    db = None
+    linear_cache, activation_cache = cache
+
+    if activation == "softmax":
+        dZ = softmax_backward(dA, activation_cache)
+        dA_prev, dW, db = linear_backward(dZ, linear_cache)
+
+    else:
+        dZ = relu_backward(dA, activation_cache)
+        dA_prev, dW, db = linear_backward(dZ, linear_cache)
 
     return dA_prev, dW, db
 
