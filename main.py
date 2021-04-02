@@ -66,7 +66,7 @@ def l_model_forward(X, parameters, use_batchnorm):
 
     w = parameters["w"][L]
     b = parameters["b"][L]
-    AL, tmp_cache = linear_activation_forward(A, w, b, activation='sigmoid')
+    AL, tmp_cache = linear_activation_forward(A, w, b, activation='softmax')
     caches.append(tmp_cache)
 
     return AL, caches
@@ -133,8 +133,26 @@ def softmax_backward(dA, activation_cache):
 
 
 def l_model_backward(AL, Y, caches):
-    # TODO
-    grads = dict()
+    grads = {}
+    num_layers = len(caches)
+    Y = Y.reshape(AL.shape)
+
+    dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+
+    last_layer_cache = caches[num_layers - 1]
+    (grads["dA" + str(num_layers)],
+     grads["dW" + str(num_layers)],
+     grads["db" + str(num_layers)]) = linear_activation_backward(dAL, last_layer_cache, activation="softmax")
+
+    for layer in reversed(range(1, num_layers)):
+        tmp_cache = caches[layer]
+        (dA_prev_temp,
+         dW_temp,
+         db_temp) = linear_activation_backward(grads["dA" + str(layer + 1)], tmp_cache, activation="relu")
+
+        grads["dA" + str(layer)] = dA_prev_temp
+        grads["dW" + str(layer)] = dW_temp
+        grads["db" + str(layer)] = db_temp
 
     return grads
 
