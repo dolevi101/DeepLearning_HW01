@@ -112,8 +112,12 @@ def linear_backward(dZ, cache):
 
 
 def linear_activation_backward(dA, cache, activation):
-    linear_cache, activation_cache = cache
-
+    linear_cache = dict()
+    activation_cache = dict()
+    linear_cache["A"] = cache["A"]
+    linear_cache["W"] = cache["W"]
+    linear_cache["b"] = cache["b"]
+    activation_cache["Z"] = cache["Z"]
     if activation == "softmax":
         dZ = softmax_backward(dA, activation_cache)
         dA_prev, dW, db = linear_backward(dZ, linear_cache)
@@ -134,7 +138,7 @@ def relu_backward(dA, activation_cache):
 
 
 def softmax_backward(dA, activation_cache):
-    Z = activation_cache
+    Z = activation_cache["Z"]
     Z = Z - np.max(Z)
     sum = (np.exp(Z).T / np.sum(np.exp(Z), axis=1))
     dZ = dA * sum * (1 - sum)
