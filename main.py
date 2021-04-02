@@ -84,9 +84,8 @@ def apply_batchnorm(A):
     A_centered = A - mean
 
     NA = A_centered / np.sqrt(variance + epsilon)
-    batchnorm_cache = {'activation': A, 'activation_norm': NA, 'mean': mean, 'var': variance}
 
-    return NA, batchnorm_cache
+    return NA
 
 
 def linear_backward(dZ, cache):
