@@ -2,10 +2,10 @@ import sys
 
 import keras
 import numpy as np
+import tensorflow as tf
 from keras.datasets import mnist
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 
 
 def initialize_parameters(layer_dims):
@@ -20,7 +20,7 @@ def initialize_parameters(layer_dims):
     params_dict["w"].append(np.random.randn(1))
     params_dict["b"].append(np.zeros(1))
     for i in range(1, len(layer_dims)):
-        params_dict["w"].append(np.random.randn(layer_dims[i], layer_dims[i - 1]))
+        params_dict["w"].append(np.random.randn(layer_dims[i], layer_dims[i - 1]) * 0.01)
         params_dict["b"].append(np.zeros((layer_dims[i], 1)))
     return params_dict
 
@@ -32,14 +32,13 @@ def linear_forward(A, W, b):
 
 
 def softmax(Z):
-    sum_z = sum(np.exp(Z))
-    A = [np.exp(z) / sum_z for z in Z]
+    A = np.exp(Z) / np.sum(np.exp(Z), axis=0)
     activation_cache = {"Z": Z}
     return A, activation_cache
 
 
 def relu(Z):
-    A = np.maximum(0,Z)
+    A = np.maximum(0, Z)
     activation_cache = {"Z": Z}
     return A, activation_cache
 
@@ -59,7 +58,7 @@ def linear_activation_forward(A_prev, W, B, activation):
 def l_model_forward(X, parameters, use_batchnorm):
     caches = list()
     A = X
-    L = len(parameters["w"])
+    L = len(parameters["w"]) - 1
 
     for layer_num in range(1, L):
         if use_batchnorm:
@@ -85,7 +84,8 @@ def l_model_forward(X, parameters, use_batchnorm):
 
 def compute_cost(AL, Y):
     # TODO
-    return cost
+    cce = tf.keras.losses.CategoricalCrossentropy()
+    return cce(Y,AL).numpy()
 
 
 def apply_batchnorm(A):
