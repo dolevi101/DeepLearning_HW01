@@ -116,15 +116,18 @@ def linear_activation_backward(dA, cache, activation):
 
 
 def relu_backward(dA, activation_cache):
-    # TODO
-    dZ = None
+    Z = activation_cache['Z']
+    dZ = np.array(dA, copy=True)
+    dZ[Z <= 0] = 0
 
     return dZ
 
 
 def softmax_backward(dA, activation_cache):
-    # TODO
-    dZ = None
+    Z = activation_cache
+    Z = Z - np.max(Z)
+    sum = (np.exp(Z).T / np.sum(np.exp(Z), axis=1))
+    dZ = dA * sum * (1 - sum)
 
     return dZ
 
