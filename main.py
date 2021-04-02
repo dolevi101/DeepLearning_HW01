@@ -89,7 +89,7 @@ def apply_batchnorm(A):
 
 
 def linear_backward(dZ, cache):
-    A_prev = cache['A']
+    A_prev = cache['A_prev']
     W = cache['W']
     M = A_prev.shape[0]
 
