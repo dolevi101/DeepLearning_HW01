@@ -51,7 +51,7 @@ def linear_activation_forward(A_prev, W, B, activation, use_batchnorm):
     return A, cache
 
 
-def l_model_forward(X, parameters, use_batchnorm):
+def l_model_forward(X, parameters, use_batchnorm, dropout_prob=None):
     caches = list()
     A = X
     L = len(parameters["w"]) - 1
@@ -64,6 +64,10 @@ def l_model_forward(X, parameters, use_batchnorm):
         w = parameters["w"][layer_num]
         b = parameters["b"][layer_num]
         A, tmp_cache = linear_activation_forward(a_prev, w, b, activation='relu', use_batchnorm=use_batchnorm)
+
+        if dropout_prob:
+            A, dropout_mask = dropout_forward(A, dropout_prob)
+            tmp_cache.update({'dropout_mask': dropout_mask})
 
         caches.append(tmp_cache)
 
@@ -165,10 +169,15 @@ def l_model_backward(AL, Y, caches):
 
     for layer_number in reversed(range(1, num_layers)):
         tmp_cache = caches[layer_number - 1]
+        dA_temp = grads["dA" + str(layer_number + 1)]
+
+        if 'dropout_mask' in tmp_cache:
+            dA_temp = dropout_backward(grads["dA" + str(layer_number + 1)], tmp_cache['dropout_mask'])
+
         tmp_cache["Y"] = Y
         (dA_prev_temp,
          dW_temp,
-         db_temp) = linear_activation_backward(grads["dA" + str(layer_number + 1)], tmp_cache, activation="relu")
+         db_temp) = linear_activation_backward(dA_temp, tmp_cache, activation="relu")
 
         tmp_grads = {"dA" + str(layer_number): dA_prev_temp,
                      "dW" + str(layer_number): dW_temp,
@@ -186,6 +195,17 @@ def update_parameters(parameters, grads, learning_rate):
         parameters["b"][layer_num] = parameters["b"][layer_num] - (learning_rate * grads["db" + str(layer_num)])
 
     return parameters
+
+
+def dropout_forward(X, prob):
+    mask = (np.random.rand(*X.shape) < prob) / prob
+    out = X * mask
+    return out, mask
+
+
+def dropout_backward(dX, mask):
+    dX = dX * mask
+    return dX
 
 
 def next_batch(X, Y, batch_size=1):
@@ -209,7 +229,7 @@ def split_data(X, Y):
     return X_train, X_val, y_train, y_val
 
 
-def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm, min_epochs):
+def l_layer_model(X, Y, layers_dims, learning_rate, num_epochs, batch_size, use_batchnorm, dropout_prob=None):
     X_train, X_val, y_train, y_val = split_data(X, Y)
 
     parameters = initialize_parameters([X.shape[0]] + layers_dims)
@@ -219,15 +239,14 @@ def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, 
     validation_acc_not_improved = 0
     all_parameter_saver = list()
 
-    for epoch in range(min_epochs):
+    for epoch in range(num_epochs):
         for X_batch, Y_batch in next_batch(X_train, y_train, batch_size):
-            AL, caches = l_model_forward(X_batch, parameters, use_batchnorm)
+            AL, caches = l_model_forward(X_batch, parameters, use_batchnorm, dropout_prob)
             cost = compute_cost(AL, Y_batch)
             gradients = l_model_backward(AL, Y_batch, caches)
             parameters = update_parameters(parameters, gradients, learning_rate)
 
             validation_acc = predict(X_val, y_val, parameters)
-            # train_acc = predict(X_train, y_train, parameters)
 
             all_parameter_saver.append(
                 {"iteration": iteration_counter,
@@ -253,7 +272,7 @@ def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, 
 
 
 def predict(X, Y, parameters):
-    predictions, _ = l_model_forward(X, parameters, use_batchnorm=False)
+    predictions, _ = l_model_forward(X, parameters, use_batchnorm=False, dropout_prob=None)
     predictions_labeled = np.argmax(predictions, axis=0)  # converting one-hot vectors to only chosen-label vector
 
     Y_labeled = np.argmax(Y, axis=0)
@@ -289,8 +308,8 @@ if __name__ == '__main__':
                                                         learning_rate=lr,
                                                         batch_size=batch_size,
                                                         use_batchnorm=False,
-                                                        num_iterations=num_iterations,
-                                                        min_epochs=min_epochs)
+                                                        num_epochs=min_epochs,
+                                                        dropout_prob=None)
 
         last_parameters = all_parameter_saver[-1]
         results.append(
