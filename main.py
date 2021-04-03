@@ -3,7 +3,6 @@ import sys
 import keras
 import numpy as np
 from keras.datasets import mnist
-from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
 
@@ -80,8 +79,10 @@ def l_model_forward(X, parameters, use_batchnorm):
 
 
 def compute_cost(AL, Y):
-    m = AL.shape[1]
-    return -(1 / m) * np.sum(np.multiply(Y, np.log(AL)))
+    num_examples = AL.shape[1]
+    cost = (-1 / num_examples) * np.sum(np.multiply(Y, np.log(AL)))
+
+    return cost
 
 
 def apply_batchnorm(A):
@@ -98,11 +99,11 @@ def apply_batchnorm(A):
 def linear_backward(dZ, cache):
     A_prev = cache['A']
     W = cache['W']
-    M = A_prev.shape[1]
+    num_examples = A_prev.shape[1]
 
     dA_prev = np.dot(W.T, dZ)
-    dW = (1 / M) * dZ.dot(A_prev.T)
-    db = (1 / M) * np.sum(dZ, axis=1, keepdims=True)
+    dW = (1 / num_examples) * dZ.dot(A_prev.T)
+    db = (1 / num_examples) * np.sum(dZ, axis=1, keepdims=True)
 
     return dA_prev, dW, db
 
@@ -146,16 +147,21 @@ def softmax_backward(dA, activation_cache):
 
 
 def l_model_backward(AL, Y, caches):
-    grads = {}
+    grads = dict()
     num_layers = len(caches)
 
-    dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+    dAL = ((-1) * (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL)))
 
     last_layer_cache = caches[num_layers - 1]
     last_layer_cache["Y"] = Y
-    (grads["dA" + str(num_layers)],
-     grads["dW" + str(num_layers)],
-     grads["db" + str(num_layers)]) = linear_activation_backward(dAL, last_layer_cache, activation="softmax")
+    (dA_prev_temp,
+     dW_temp,
+     db_temp) = linear_activation_backward(dAL, last_layer_cache, activation="softmax")
+
+    tmp_grads = {"dA" + str(num_layers): dA_prev_temp,
+                 "dW" + str(num_layers): dW_temp,
+                 "db" + str(num_layers): db_temp}
+    grads.update(tmp_grads)
 
     for layer_number in reversed(range(1, num_layers)):
         tmp_cache = caches[layer_number - 1]
@@ -164,9 +170,10 @@ def l_model_backward(AL, Y, caches):
          dW_temp,
          db_temp) = linear_activation_backward(grads["dA" + str(layer_number + 1)], tmp_cache, activation="relu")
 
-        grads["dA" + str(layer_number)] = dA_prev_temp
-        grads["dW" + str(layer_number)] = dW_temp
-        grads["db" + str(layer_number)] = db_temp
+        tmp_grads = {"dA" + str(layer_number): dA_prev_temp,
+                     "dW" + str(layer_number): dW_temp,
+                     "db" + str(layer_number): db_temp}
+        grads.update(tmp_grads)
 
     return grads
 
@@ -182,139 +189,116 @@ def update_parameters(parameters, grads, learning_rate):
 
 
 def next_batch(X, Y, batch_size=1):
+    """
+    Yields the next batch for the model
+    """
     num_of_examples = len(X)
     for next_batch_idx in range(0, num_of_examples, batch_size):
         yield (X[:, next_batch_idx:min(next_batch_idx + batch_size, num_of_examples)],
                Y[:, next_batch_idx:min(next_batch_idx + batch_size, num_of_examples)])
 
 
-def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm, min_epochs):
-    # split to train and val
+def split_data(X, Y):
+    """
+    Creates a split for the data
+    """
     X_train, X_val, y_train, y_val = train_test_split(X.T, Y.T,
                                                       test_size=0.2,
                                                       stratify=Y.T, random_state=42)
-
     X_train, X_val, y_train, y_val = X_train.T, X_val.T, y_train.T, y_val.T
+    return X_train, X_val, y_train, y_val
 
-    # initialization
+
+def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm, min_epochs):
+    X_train, X_val, y_train, y_val = split_data(X, Y)
+
     parameters = initialize_parameters([X.shape[0]] + layers_dims)
-    costs = []
-    accs_per_100_iterations = []
-    costs_per_100_iterations = []
-    train_accs_pre_100_iterations = []
 
-    iterations_counter = 0
-    epoch_counter = 0
-    val_acc_no_improvement_count = 0
-    best_val_acc_value = 0
+    iteration_counter = 0
+    best_validation_acc = 0
+    validation_acc_not_improved = 0
+    all_parameter_saver = list()
 
-    while iterations_counter < num_iterations:
+    for epoch in range(min_epochs):
         for X_batch, Y_batch in next_batch(X_train, y_train, batch_size):
-            # forward pass
             AL, caches = l_model_forward(X_batch, parameters, use_batchnorm)
-
-            # compute the cost and document it
             cost = compute_cost(AL, Y_batch)
-            costs.append({"cost": cost, "AL": AL, "Y": Y_batch})
+            gradients = l_model_backward(AL, Y_batch, caches)
+            parameters = update_parameters(parameters, gradients, learning_rate)
 
-            # backward pass
-            grads = l_model_backward(AL, Y_batch, caches)
+            validation_acc = predict(X_val, y_val, parameters)
+            # train_acc = predict(X_train, y_train, parameters)
 
-            # update parameters
-            parameters = update_parameters(parameters, grads, learning_rate)
+            all_parameter_saver.append(
+                {"iteration": iteration_counter,
+                 "epoch": epoch,
+                 "cost": cost,
+                 "validation_acc": validation_acc})
 
-            iterations_counter += 1
+            if iteration_counter % 100 == 0:
+                print(f'iteration: {iteration_counter} | cost: {cost} | val_acc: {validation_acc}')
 
-            # document performance every 100 iterations
-            val_acc = predict(X_val, y_val, parameters)
-            if iterations_counter % 100 == 0:
-                accs_per_100_iterations.append(val_acc)
-                train_acc = predict(X_train, y_train, parameters)
-                train_accs_pre_100_iterations.append(train_acc)
-                costs_per_100_iterations.append(cost)
-                print('iteration step: {} | cost: {} | val_acc: {}'.format(iterations_counter, cost, val_acc))
+            if validation_acc > best_validation_acc:
+                best_validation_acc = validation_acc
+                validation_acc_not_improved = 0
+            else:
+                validation_acc_not_improved += 1
 
-            # check if accuracy improved
-            if val_acc > best_val_acc_value:
-                best_val_acc_value = val_acc
-                val_acc_no_improvement_count = 0
-            val_acc_no_improvement_count += 1
+            if validation_acc_not_improved >= 100:
+                return parameters, all_parameter_saver
 
-            # check stop criteria
-            if val_acc_no_improvement_count >= 100 and epoch_counter >= min_epochs:
-                train_acc = predict(X_train, y_train, parameters)
-                val_acc = predict(X_val, y_val, parameters)
-                return parameters, costs_per_100_iterations, accs_per_100_iterations, train_accs_pre_100_iterations, train_acc, val_acc
-        epoch_counter += 1
+            iteration_counter += 1
 
-    train_acc = predict(X_train, y_train, parameters)
-    val_acc = predict(X_val, y_val, parameters)
-    return parameters, costs_per_100_iterations, accs_per_100_iterations, train_accs_pre_100_iterations, train_acc, val_acc
+    return parameters, all_parameter_saver
 
 
 def predict(X, Y, parameters):
-    scores, _ = l_model_forward(X, parameters, use_batchnorm=False)  # test time
-    predictions = np.argmax(scores, axis=0)
-    Y_flatten = np.argmax(Y, axis=0)
-    return accuracy_score(Y_flatten, predictions)
+    predictions, _ = l_model_forward(X, parameters, use_batchnorm=False)
+    predictions_labeled = np.argmax(predictions, axis=0)  # converting one-hot vectors to only chosen-label vector
+
+    Y_labeled = np.argmax(Y, axis=0)
+    temp = predictions_labeled - Y_labeled
+    nonzero_vals = np.count_nonzero(temp)
+
+    accuracy = (1 - nonzero_vals / Y_labeled.shape[0])
+
+    return accuracy
 
 
-def print_shapes(x_train, y_train, x_test, y_test):
-    print(f"x_train.shape = {x_train.shape}")
-    print(f"y_train.shape = {y_train.shape}\n")
-    print(f"x_test.shape = {x_test.shape}")
-    print(f"y_test.shape = {y_test.shape}\n")
+if __name__ == '__main__':
+    (X_train, y_train), (X_test, y_test) = mnist.load_data()
 
-
-def prepare_data(x_train, y_train, x_test, y_test):
-    """
-    Perform one-hot encoding to the labels, and reshaping to the data
-    """
     num_classes = len(np.unique(y_train))
     y_train = keras.utils.to_categorical(y_train.reshape(-1, 1), num_classes)
     y_test = keras.utils.to_categorical(y_test.reshape(-1, 1), num_classes)
 
     image_size = 784
-    x_train = x_train.reshape(-1, image_size)
-    x_test = x_test.reshape(-1, image_size)
+    X_train = X_train.reshape(-1, image_size)
+    X_test = X_test.reshape(-1, image_size)
 
-    return x_train, y_train, x_test, y_test
-
-
-def plot(to_plot, title='Title', xlabel='', ylabel=''):
-    import matplotlib.pyplot as plt
-    plt.title(title)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.plot(to_plot)
-    plt.show()
-
-
-if __name__ == '__main__':
-    # result = initialize_parameters([3, 4, 1])
-    # print(result)
-
-    (X_train, y_train), (X_test, y_test) = mnist.load_data()
-    print_shapes(X_train, y_train, X_test, y_test)
-    print("classes = ", list(np.unique(y_train)))
-
-    # data preprocessing
-    X_train, y_train, X_test, y_test = prepare_data(X_train, y_train, X_test, y_test)
-    print_shapes(X_train, y_train, X_test, y_test)
-    # X_train, X_test = scale_data(X_train, X_test)
-
-    hidden_dims = [20, 7, 5, 10]
+    hidden_layer_dims = [20, 7, 5, 10]
     lr = 0.009
-    iters = 9000000
+    num_iterations = 9000000
     min_epochs = 50
+    tested_batch_sizes = [16, 32, 64, 128]
 
-    # batch sizes experiment
-    batch_experiment_results = {}
-    for batch_size in [32, 64, 128]:
-        batch_experiment_results[batch_size] = l_layer_model(X_train.T, y_train.T,
-                                                             hidden_dims,
-                                                             learning_rate=lr,
-                                                             batch_size=batch_size,
-                                                             use_batchnorm=False,
-                                                             num_iterations=iters,
-                                                             min_epochs=min_epochs)
+    results = list()
+    for batch_size in tested_batch_sizes:
+        parameters, all_parameter_saver = l_layer_model(X_train.T, y_train.T,
+                                                        hidden_layer_dims,
+                                                        learning_rate=lr,
+                                                        batch_size=batch_size,
+                                                        use_batchnorm=False,
+                                                        num_iterations=num_iterations,
+                                                        min_epochs=min_epochs)
+
+        last_parameters = all_parameter_saver[-1]
+        results.append(
+            {"batch_size": batch_size,
+             "num_epochs": last_parameters['epoch'],
+             "iterations": last_parameters['iteration'],
+             "cost": last_parameters['cost'],
+             "val_acc": last_parameters['validation_acc'],
+             "test_acc": predict(X_test.T, y_test.T, parameters)})
+
+    print(results)
