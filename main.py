@@ -1,3 +1,4 @@
+import datetime
 import sys
 
 import keras
@@ -51,7 +52,7 @@ def linear_activation_forward(A_prev, W, B, activation, use_batchnorm):
     return A, cache
 
 
-def l_model_forward(X, parameters, use_batchnorm):
+def l_model_forward(X, parameters, use_batchnorm, dropout_prob=None):
     caches = list()
     A = X
     L = len(parameters["w"]) - 1
@@ -64,6 +65,10 @@ def l_model_forward(X, parameters, use_batchnorm):
         w = parameters["w"][layer_num]
         b = parameters["b"][layer_num]
         A, tmp_cache = linear_activation_forward(a_prev, w, b, activation='relu', use_batchnorm=use_batchnorm)
+
+        if dropout_prob:
+            A, dropout_mask = dropout_forward(A, dropout_prob)
+            tmp_cache.update({'dropout_mask': dropout_mask})
 
         caches.append(tmp_cache)
 
@@ -165,10 +170,15 @@ def l_model_backward(AL, Y, caches):
 
     for layer_number in reversed(range(1, num_layers)):
         tmp_cache = caches[layer_number - 1]
+        dA_temp = grads["dA" + str(layer_number + 1)]
+
+        if 'dropout_mask' in tmp_cache:
+            dA_temp = dropout_backward(grads["dA" + str(layer_number + 1)], tmp_cache['dropout_mask'])
+
         tmp_cache["Y"] = Y
         (dA_prev_temp,
          dW_temp,
-         db_temp) = linear_activation_backward(grads["dA" + str(layer_number + 1)], tmp_cache, activation="relu")
+         db_temp) = linear_activation_backward(dA_temp, tmp_cache, activation="relu")
 
         tmp_grads = {"dA" + str(layer_number): dA_prev_temp,
                      "dW" + str(layer_number): dW_temp,
@@ -188,11 +198,22 @@ def update_parameters(parameters, grads, learning_rate):
     return parameters
 
 
+def dropout_forward(X, prob):
+    mask = (np.random.rand(*X.shape) < prob) / prob
+    out = X * mask
+    return out, mask
+
+
+def dropout_backward(dX, mask):
+    dX = dX * mask
+    return dX
+
+
 def next_batch(X, Y, batch_size=1):
     """
     Yields the next batch for the model
     """
-    num_of_examples = len(X)
+    num_of_examples = X.shape[1]
     for next_batch_idx in range(0, num_of_examples, batch_size):
         yield (X[:, next_batch_idx:min(next_batch_idx + batch_size, num_of_examples)],
                Y[:, next_batch_idx:min(next_batch_idx + batch_size, num_of_examples)])
@@ -209,34 +230,30 @@ def split_data(X, Y):
     return X_train, X_val, y_train, y_val
 
 
-def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm, min_epochs):
+def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm=False, dropout_prob=None):
     X_train, X_val, y_train, y_val = split_data(X, Y)
 
     parameters = initialize_parameters([X.shape[0]] + layers_dims)
 
     iteration_counter = 0
+    epoch_counter = 0
     best_validation_acc = 0
     validation_acc_not_improved = 0
-    all_parameter_saver = list()
+    cost_parameter_saver = list()
 
-    for epoch in range(min_epochs):
+    while iteration_counter < num_iterations:
         for X_batch, Y_batch in next_batch(X_train, y_train, batch_size):
-            AL, caches = l_model_forward(X_batch, parameters, use_batchnorm)
+            AL, caches = l_model_forward(X_batch, parameters, use_batchnorm, dropout_prob)
             cost = compute_cost(AL, Y_batch)
             gradients = l_model_backward(AL, Y_batch, caches)
             parameters = update_parameters(parameters, gradients, learning_rate)
 
             validation_acc = predict(X_val, y_val, parameters)
-            # train_acc = predict(X_train, y_train, parameters)
-
-            all_parameter_saver.append(
-                {"iteration": iteration_counter,
-                 "epoch": epoch,
-                 "cost": cost,
-                 "validation_acc": validation_acc})
 
             if iteration_counter % 100 == 0:
-                print(f'iteration: {iteration_counter} | cost: {cost} | val_acc: {validation_acc}')
+                print(
+                    f'iteration: {iteration_counter} | cost: {cost} | val_acc: {validation_acc} | epoch: {epoch_counter}')
+                cost_parameter_saver.append(cost)
 
             if validation_acc > best_validation_acc:
                 best_validation_acc = validation_acc
@@ -245,15 +262,16 @@ def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, 
                 validation_acc_not_improved += 1
 
             if validation_acc_not_improved >= 100:
-                return parameters, all_parameter_saver
+                return parameters, cost_parameter_saver
 
             iteration_counter += 1
 
-    return parameters, all_parameter_saver
+        epoch_counter += 1
+    return parameters, cost_parameter_saver
 
 
 def predict(X, Y, parameters):
-    predictions, _ = l_model_forward(X, parameters, use_batchnorm=False)
+    predictions, _ = l_model_forward(X, parameters, use_batchnorm=False, dropout_prob=None)
     predictions_labeled = np.argmax(predictions, axis=0)  # converting one-hot vectors to only chosen-label vector
 
     Y_labeled = np.argmax(Y, axis=0)
@@ -279,26 +297,29 @@ if __name__ == '__main__':
     hidden_layer_dims = [20, 7, 5, 10]
     lr = 0.009
     num_iterations = 9000000
-    min_epochs = 50
-    tested_batch_sizes = [16, 32, 64, 128]
+    tested_batch_sizes = [32, 64, 128]
 
     results = list()
     for batch_size in tested_batch_sizes:
-        parameters, all_parameter_saver = l_layer_model(X_train.T, y_train.T,
-                                                        hidden_layer_dims,
-                                                        learning_rate=lr,
-                                                        batch_size=batch_size,
-                                                        use_batchnorm=False,
-                                                        num_iterations=num_iterations,
-                                                        min_epochs=min_epochs)
+        start_time = datetime.datetime.now()
+        parameters, cost_parameter_saver = l_layer_model(X_train.T, y_train.T,
+                                                         hidden_layer_dims,
+                                                         learning_rate=lr,
+                                                         batch_size=batch_size,
+                                                         num_iterations=num_iterations,
+                                                         use_batchnorm=False,
+                                                         dropout_prob=None)
 
-        last_parameters = all_parameter_saver[-1]
-        results.append(
-            {"batch_size": batch_size,
-             "num_epochs": last_parameters['epoch'],
-             "iterations": last_parameters['iteration'],
-             "cost": last_parameters['cost'],
-             "val_acc": last_parameters['validation_acc'],
-             "test_acc": predict(X_test.T, y_test.T, parameters)})
+        end_time = datetime.datetime.now()
+
+        last_parameters = cost_parameter_saver[-1]
+        results_dict = {"time": str(end_time - start_time),
+                        "batch_size": batch_size,
+                        "iterations": len(cost_parameter_saver) * 100,
+                        "cost": cost_parameter_saver[-1],
+                        "train_acc": predict(X_train.T, X_train.T, parameters),
+                        "test_acc": predict(X_test.T, y_test.T, parameters)}
+
+        results.append(results_dict)
 
     print(results)
