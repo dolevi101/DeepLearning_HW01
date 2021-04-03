@@ -12,7 +12,7 @@ def initialize_parameters(layer_dims):
     params_dict["w"].append(np.random.randn(1))
     params_dict["b"].append(np.zeros(1))
     for i in range(1, len(layer_dims)):
-        params_dict["w"].append(np.random.randn(layer_dims[i], layer_dims[i - 1]) * 0.01)
+        params_dict["w"].append(np.random.randn(layer_dims[i], layer_dims[i - 1]) * np.sqrt(2 / layer_dims[0]))
         params_dict["b"].append(np.zeros((layer_dims[i], 1)))
     return params_dict
 
@@ -48,7 +48,6 @@ def linear_activation_forward(A_prev, W, B, activation, use_batchnorm):
 
     cache = dict(linear_cache)
     cache.update(activation_cache)
-
 
     return A, cache
 
@@ -99,7 +98,7 @@ def apply_batchnorm(A):
 def linear_backward(dZ, cache):
     A_prev = cache['A']
     W = cache['W']
-    M = A_prev.shape[0]
+    M = A_prev.shape[1]
 
     dA_prev = np.dot(W.T, dZ)
     dW = (1 / M) * dZ.dot(A_prev.T)
@@ -149,7 +148,6 @@ def softmax_backward(dA, activation_cache):
 def l_model_backward(AL, Y, caches):
     grads = {}
     num_layers = len(caches)
-    Y = Y.reshape(AL.shape)
 
     dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
 
@@ -183,13 +181,14 @@ def update_parameters(parameters, grads, learning_rate):
     return parameters
 
 
-def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm, min_epochs):
-    def next_batch(X, y, batch_size):
-        # loop over our dataset X in mini-batches of size batchSize
-        for i in np.arange(0, X.shape[0], batch_size):
-            # yield a tuple of the current batched data and labels
-            yield (X[:, i: i + batch_size], y[:, i: i + batch_size])
+def next_batch(X, Y, batch_size=1):
+    num_of_examples = len(X)
+    for next_batch_idx in range(0, num_of_examples, batch_size):
+        yield (X[:, next_batch_idx:min(next_batch_idx + batch_size, num_of_examples)],
+               Y[:, next_batch_idx:min(next_batch_idx + batch_size, num_of_examples)])
 
+
+def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm, min_epochs):
     # split to train and val
     X_train, X_val, y_train, y_val = train_test_split(X.T, Y.T,
                                                       test_size=0.2,
@@ -216,7 +215,7 @@ def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, 
 
             # compute the cost and document it
             cost = compute_cost(AL, Y_batch)
-            costs.append(cost)
+            costs.append({"cost": cost, "AL": AL, "Y": Y_batch})
 
             # backward pass
             grads = l_model_backward(AL, Y_batch, caches)
@@ -233,7 +232,7 @@ def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, 
                 train_acc = predict(X_train, y_train, parameters)
                 train_accs_pre_100_iterations.append(train_acc)
                 costs_per_100_iterations.append(cost)
-                print('iteration step: {} | cost: {}'.format(iterations_counter, cost))
+                print('iteration step: {} | cost: {} | val_acc: {}'.format(iterations_counter, cost, val_acc))
 
             # check if accuracy improved
             if val_acc > best_val_acc_value:
@@ -276,10 +275,8 @@ def prepare_data(x_train, y_train, x_test, y_test):
     y_test = keras.utils.to_categorical(y_test.reshape(-1, 1), num_classes)
 
     image_size = 784
-    x_train = x_train.reshape(image_size, -1)
-    x_test = x_test.reshape(image_size, -1)
-    y_train = y_train.T
-    y_test = y_test.T
+    x_train = x_train.reshape(-1, image_size)
+    x_test = x_test.reshape(-1, image_size)
 
     return x_train, y_train, x_test, y_test
 
@@ -309,15 +306,15 @@ if __name__ == '__main__':
     hidden_dims = [20, 7, 5, 10]
     lr = 0.009
     iters = 9000000
-    min_epochs = 10
+    min_epochs = 50
 
     # batch sizes experiment
     batch_experiment_results = {}
     for batch_size in [32, 64, 128]:
-        batch_experiment_results[batch_size] = l_layer_model(X_train, y_train,
+        batch_experiment_results[batch_size] = l_layer_model(X_train.T, y_train.T,
                                                              hidden_dims,
                                                              learning_rate=lr,
                                                              batch_size=batch_size,
-                                                             use_batchnorm=True,
+                                                             use_batchnorm=False,
                                                              num_iterations=iters,
                                                              min_epochs=min_epochs)
