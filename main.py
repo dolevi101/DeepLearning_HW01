@@ -261,7 +261,7 @@ def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, 
             else:
                 validation_acc_not_improved += 1
 
-            if validation_acc_not_improved >= 100:
+            if validation_acc_not_improved >= 100 or iteration_counter >= num_iterations:
                 return parameters, cost_parameter_saver
 
             iteration_counter += 1
@@ -296,7 +296,7 @@ if __name__ == '__main__':
 
     hidden_layer_dims = [20, 7, 5, 10]
     lr = 0.009
-    num_iterations = 9000000
+    num_iterations = 100000
     tested_batch_sizes = [32, 64, 128]
 
     results = list()
@@ -317,8 +317,10 @@ if __name__ == '__main__':
                         "batch_size": batch_size,
                         "iterations": len(cost_parameter_saver) * 100,
                         "cost": cost_parameter_saver[-1],
-                        "train_acc": predict(X_train.T, X_train.T, parameters),
+                        "train_acc": predict(X_train.T, y_train.T, parameters),
                         "test_acc": predict(X_test.T, y_test.T, parameters)}
+
+        print(results_dict)
 
         results.append(results_dict)
 
