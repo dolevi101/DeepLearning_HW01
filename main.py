@@ -248,10 +248,16 @@ def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, 
 
 
 def predict(X, Y, parameters):
-    scores, _ = l_model_forward(X, parameters, use_batchnorm=False)  # test time
-    predictions = np.argmax(scores, axis=0)
-    Y_flatten = np.argmax(Y, axis=0)
-    return accuracy_score(Y_flatten, predictions)
+    predictions, _ = l_model_forward(X, parameters, use_batchnorm=False)
+    predictions_labeled = np.argmax(predictions, axis=0)  # converting one-hot vectors to only chosen-label vector
+
+    Y_labeled = np.argmax(Y, axis=0)
+    temp = predictions_labeled - Y_labeled
+    nonzero_vals = np.count_nonzero(temp)
+
+    accuracy = (1 - nonzero_vals / Y_labeled.shape[0])
+
+    return accuracy
 
 
 def print_shapes(x_train, y_train, x_test, y_test):
