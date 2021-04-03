@@ -282,12 +282,23 @@ if __name__ == '__main__':
     min_epochs = 50
     tested_batch_sizes = [16, 32, 64, 128]
 
-    results = {}
+    results = list()
     for batch_size in tested_batch_sizes:
-        results[batch_size] = l_layer_model(X_train.T, y_train.T,
-                                            hidden_layer_dims,
-                                            learning_rate=lr,
-                                            batch_size=batch_size,
-                                            use_batchnorm=False,
-                                            num_iterations=num_iterations,
-                                            min_epochs=min_epochs)
+        parameters, all_parameter_saver = l_layer_model(X_train.T, y_train.T,
+                                                        hidden_layer_dims,
+                                                        learning_rate=lr,
+                                                        batch_size=batch_size,
+                                                        use_batchnorm=False,
+                                                        num_iterations=num_iterations,
+                                                        min_epochs=min_epochs)
+
+        last_parameters = all_parameter_saver[-1]
+        results.append(
+            {"batch_size": batch_size,
+             "num_epochs": last_parameters['epoch'],
+             "iterations": last_parameters['iteration'],
+             "cost": last_parameters['cost'],
+             "val_acc": last_parameters['validation_acc'],
+             "test_acc": predict(X_test.T, y_test.T, parameters)})
+
+    print(results)
