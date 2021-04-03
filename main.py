@@ -80,8 +80,10 @@ def l_model_forward(X, parameters, use_batchnorm):
 
 
 def compute_cost(AL, Y):
-    m = AL.shape[1]
-    return -(1 / m) * np.sum(np.multiply(Y, np.log(AL)))
+    num_examples = AL.shape[1]
+    cost = (-1 / num_examples) * np.sum(np.multiply(Y, np.log(AL)))
+
+    return cost
 
 
 def apply_batchnorm(A):
@@ -98,11 +100,11 @@ def apply_batchnorm(A):
 def linear_backward(dZ, cache):
     A_prev = cache['A']
     W = cache['W']
-    M = A_prev.shape[1]
+    num_examples = A_prev.shape[1]
 
     dA_prev = np.dot(W.T, dZ)
-    dW = (1 / M) * dZ.dot(A_prev.T)
-    db = (1 / M) * np.sum(dZ, axis=1, keepdims=True)
+    dW = (1 / num_examples) * dZ.dot(A_prev.T)
+    db = (1 / num_examples) * np.sum(dZ, axis=1, keepdims=True)
 
     return dA_prev, dW, db
 
@@ -146,16 +148,21 @@ def softmax_backward(dA, activation_cache):
 
 
 def l_model_backward(AL, Y, caches):
-    grads = {}
+    grads = dict()
     num_layers = len(caches)
 
-    dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+    dAL = ((-1) * (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL)))
 
     last_layer_cache = caches[num_layers - 1]
     last_layer_cache["Y"] = Y
-    (grads["dA" + str(num_layers)],
-     grads["dW" + str(num_layers)],
-     grads["db" + str(num_layers)]) = linear_activation_backward(dAL, last_layer_cache, activation="softmax")
+    (dA_prev_temp,
+     dW_temp,
+     db_temp) = linear_activation_backward(dAL, last_layer_cache, activation="softmax")
+
+    tmp_grads = {"dA" + str(num_layers): dA_prev_temp,
+                 "dW" + str(num_layers): dW_temp,
+                 "db" + str(num_layers): db_temp}
+    grads.update(tmp_grads)
 
     for layer_number in reversed(range(1, num_layers)):
         tmp_cache = caches[layer_number - 1]
@@ -164,9 +171,10 @@ def l_model_backward(AL, Y, caches):
          dW_temp,
          db_temp) = linear_activation_backward(grads["dA" + str(layer_number + 1)], tmp_cache, activation="relu")
 
-        grads["dA" + str(layer_number)] = dA_prev_temp
-        grads["dW" + str(layer_number)] = dW_temp
-        grads["db" + str(layer_number)] = db_temp
+        tmp_grads = {"dA" + str(layer_number): dA_prev_temp,
+                     "dW" + str(layer_number): dW_temp,
+                     "db" + str(layer_number): db_temp}
+        grads.update(tmp_grads)
 
     return grads
 
@@ -189,7 +197,7 @@ def next_batch(X, Y, batch_size=1):
 
 
 def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm, min_epochs):
-    # split to train and val
+
     X_train, X_val, y_train, y_val = train_test_split(X.T, Y.T,
                                                       test_size=0.2,
                                                       stratify=Y.T, random_state=42)
