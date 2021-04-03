@@ -100,13 +100,13 @@ def apply_batchnorm(A):
 
 
 def linear_backward(dZ, cache):
-    A_prev = cache['A_prev']
+    A_prev = cache['A']
     W = cache['W']
     M = A_prev.shape[0]
 
     dA_prev = np.dot(W.T, dZ)
     dW = (1 / M) * dZ.dot(A_prev.T)
-    db = (1 / M) * np.sum(dZ, axis=0, keepdims=True)
+    db = (1 / M) * np.sum(dZ, axis=1, keepdims=True)
 
     return dA_prev, dW, db
 
@@ -118,6 +118,7 @@ def linear_activation_backward(dA, cache, activation):
     linear_cache["W"] = cache["W"]
     linear_cache["b"] = cache["b"]
     activation_cache["Z"] = cache["Z"]
+    activation_cache["Y"] = cache["Y"]
     if activation == "softmax":
         dZ = softmax_backward(dA, activation_cache)
         dA_prev, dW, db = linear_backward(dZ, linear_cache)
@@ -138,10 +139,12 @@ def relu_backward(dA, activation_cache):
 
 
 def softmax_backward(dA, activation_cache):
+    #TODO
     Z = activation_cache["Z"]
-    Z = Z - np.max(Z)
-    sum = (np.exp(Z).T / np.sum(np.exp(Z), axis=1))
-    dZ = dA * sum * (1 - sum)
+    Y = activation_cache["Y"]
+    A, cache = softmax(Z)
+
+    dZ = A - Y
 
     return dZ
 
@@ -154,32 +157,31 @@ def l_model_backward(AL, Y, caches):
     dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
 
     last_layer_cache = caches[num_layers - 1]
+    last_layer_cache["Y"] = Y
     (grads["dA" + str(num_layers)],
      grads["dW" + str(num_layers)],
      grads["db" + str(num_layers)]) = linear_activation_backward(dAL, last_layer_cache, activation="softmax")
 
-    for layer in reversed(range(1, num_layers)):
-        tmp_cache = caches[layer]
+    for layer_number in reversed(range(1, num_layers)):
+        tmp_cache = caches[layer_number - 1]
+        tmp_cache["Y"] = Y
         (dA_prev_temp,
          dW_temp,
-         db_temp) = linear_activation_backward(grads["dA" + str(layer + 1)], tmp_cache, activation="relu")
+         db_temp) = linear_activation_backward(grads["dA" + str(layer_number + 1)], tmp_cache, activation="relu")
 
-        grads["dA" + str(layer)] = dA_prev_temp
-        grads["dW" + str(layer)] = dW_temp
-        grads["db" + str(layer)] = db_temp
+        grads["dA" + str(layer_number)] = dA_prev_temp
+        grads["dW" + str(layer_number)] = dW_temp
+        grads["db" + str(layer_number)] = db_temp
 
     return grads
 
 
 def update_parameters(parameters, grads, learning_rate):
-    num_of_layers = len(parameters) // 2
+    num_of_layers = len(parameters["w"]) - 1
 
-    for layer_num in range(1, num_of_layers):
-        curr_w = "w" + str(layer_num)
-        curr_b = "w" + str(layer_num)
-
-        parameters[curr_w] -= (learning_rate * grads["dW" + str(layer_num)])
-        parameters[curr_b] -= (learning_rate * grads["db" + str(layer_num)])
+    for layer_num in range(1, num_of_layers + 1):
+        parameters["w"][layer_num] = parameters["w"][layer_num] - (learning_rate * grads["dW" + str(layer_num)])
+        parameters["b"][layer_num] = parameters["b"][layer_num] - (learning_rate * grads["db" + str(layer_num)])
 
     return parameters
 
@@ -255,9 +257,9 @@ def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, 
 
 
 def predict(X, Y, parameters):
-    scores, _, _, _ = l_model_forward(X, parameters, use_batchnorm=False)  # test time
-    predictions = np.argmax(scores, axis=1)
-    Y_flatten = np.argmax(Y, axis=1)
+    scores, _ = l_model_forward(X, parameters, use_batchnorm=False)  # test time
+    predictions = np.argmax(scores, axis=0)
+    Y_flatten = np.argmax(Y, axis=0)
     return accuracy_score(Y_flatten, predictions)
 
 
