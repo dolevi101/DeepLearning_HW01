@@ -189,6 +189,9 @@ def update_parameters(parameters, grads, learning_rate):
 
 
 def next_batch(X, Y, batch_size=1):
+    """
+    Yields the next batch for the model
+    """
     num_of_examples = len(X)
     for next_batch_idx in range(0, num_of_examples, batch_size):
         yield (X[:, next_batch_idx:min(next_batch_idx + batch_size, num_of_examples)],
@@ -196,6 +199,9 @@ def next_batch(X, Y, batch_size=1):
 
 
 def split_data(X, Y):
+    """
+    Creates a split for the data
+    """
     X_train, X_val, y_train, y_val = train_test_split(X.T, Y.T,
                                                       test_size=0.2,
                                                       stratify=Y.T, random_state=42)
@@ -274,7 +280,7 @@ if __name__ == '__main__':
     lr = 0.009
     num_iterations = 9000000
     min_epochs = 50
-    tested_batch_sizes = [32, 64, 128]
+    tested_batch_sizes = [16, 32, 64, 128]
 
     results = {}
     for batch_size in tested_batch_sizes:
