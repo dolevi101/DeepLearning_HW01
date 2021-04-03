@@ -2,7 +2,6 @@ import sys
 
 import keras
 import numpy as np
-import tensorflow as tf
 from keras.datasets import mnist
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
@@ -83,9 +82,8 @@ def l_model_forward(X, parameters, use_batchnorm):
 
 
 def compute_cost(AL, Y):
-    # TODO
-    cce = tf.keras.losses.CategoricalCrossentropy()
-    return cce(Y,AL).numpy()
+    m = AL.shape[1]
+    return -(1 / m) * np.sum(np.multiply(Y, np.log(AL)))
 
 
 def apply_batchnorm(A):
@@ -139,7 +137,6 @@ def relu_backward(dA, activation_cache):
 
 
 def softmax_backward(dA, activation_cache):
-    #TODO
     Z = activation_cache["Z"]
     Y = activation_cache["Y"]
     A, cache = softmax(Z)
@@ -311,7 +308,6 @@ if __name__ == '__main__':
 
     hidden_dims = [20, 7, 5, 10]
     lr = 0.009
-    batch_size = 64
     iters = 9000000
     min_epochs = 10
 
