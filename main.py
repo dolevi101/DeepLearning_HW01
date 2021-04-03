@@ -4,7 +4,6 @@ import sys
 import keras
 import numpy as np
 from keras.datasets import mnist
-from sklearn.model_selection import train_test_split
 
 
 def initialize_parameters(layer_dims):
@@ -223,10 +222,14 @@ def split_data(X, Y):
     """
     Creates a split for the data
     """
-    X_train, X_val, y_train, y_val = train_test_split(X.T, Y.T,
-                                                      test_size=0.2,
-                                                      stratify=Y.T, random_state=42)
-    X_train, X_val, y_train, y_val = X_train.T, X_val.T, y_train.T, y_val.T
+    msk = np.random.rand(X.shape[1]) < 0.8
+
+    X_train = X[:, msk]
+    X_val = X[:, ~msk]
+
+    y_train = Y[:, msk]
+    y_val = Y[:, ~msk]
+
     return X_train, X_val, y_train, y_val
 
 
