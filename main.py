@@ -8,13 +8,6 @@ from sklearn.model_selection import train_test_split
 
 
 def initialize_parameters(layer_dims):
-    # TODO This should be implemented as
-    # {
-    #     "W1": ...
-    #     "b1": ...
-    #     "W2": ...
-    #     "b2": ...
-    # }
     params_dict = {"w": [], "b": []}
     params_dict["w"].append(np.random.randn(1))
     params_dict["b"].append(np.zeros(1))
@@ -42,8 +35,12 @@ def relu(Z):
     return A, activation_cache
 
 
-def linear_activation_forward(A_prev, W, B, activation):
+def linear_activation_forward(A_prev, W, B, activation, use_batchnorm):
     Z, linear_cache = linear_forward(A_prev, W, B)
+
+    if use_batchnorm:
+        Z = apply_batchnorm(Z)
+
     if activation == "softmax":
         A, activation_cache = softmax(Z)
     else:
@@ -51,6 +48,8 @@ def linear_activation_forward(A_prev, W, B, activation):
 
     cache = dict(linear_cache)
     cache.update(activation_cache)
+
+
     return A, cache
 
 
@@ -66,7 +65,7 @@ def l_model_forward(X, parameters, use_batchnorm):
         a_prev = A
         w = parameters["w"][layer_num]
         b = parameters["b"][layer_num]
-        A, tmp_cache = linear_activation_forward(a_prev, w, b, activation='relu')
+        A, tmp_cache = linear_activation_forward(a_prev, w, b, activation='relu', use_batchnorm=use_batchnorm)
 
         caches.append(tmp_cache)
 
@@ -75,7 +74,7 @@ def l_model_forward(X, parameters, use_batchnorm):
 
     w = parameters["w"][L]
     b = parameters["b"][L]
-    AL, tmp_cache = linear_activation_forward(A, w, b, activation='softmax')
+    AL, tmp_cache = linear_activation_forward(A, w, b, activation='softmax', use_batchnorm=False)
     caches.append(tmp_cache)
 
     return AL, caches
@@ -117,13 +116,14 @@ def linear_activation_backward(dA, cache, activation):
     linear_cache["b"] = cache["b"]
     activation_cache["Z"] = cache["Z"]
     activation_cache["Y"] = cache["Y"]
+
     if activation == "softmax":
         dZ = softmax_backward(dA, activation_cache)
-        dA_prev, dW, db = linear_backward(dZ, linear_cache)
 
     else:
         dZ = relu_backward(dA, activation_cache)
-        dA_prev, dW, db = linear_backward(dZ, linear_cache)
+
+    dA_prev, dW, db = linear_backward(dZ, linear_cache)
 
     return dA_prev, dW, db
 
@@ -318,6 +318,6 @@ if __name__ == '__main__':
                                                              hidden_dims,
                                                              learning_rate=lr,
                                                              batch_size=batch_size,
-                                                             use_batchnorm=False,
+                                                             use_batchnorm=True,
                                                              num_iterations=iters,
                                                              min_epochs=min_epochs)
