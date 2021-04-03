@@ -196,68 +196,55 @@ def next_batch(X, Y, batch_size=1):
                Y[:, next_batch_idx:min(next_batch_idx + batch_size, num_of_examples)])
 
 
-def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm, min_epochs):
-
+def split_data(X, Y):
     X_train, X_val, y_train, y_val = train_test_split(X.T, Y.T,
                                                       test_size=0.2,
                                                       stratify=Y.T, random_state=42)
-
     X_train, X_val, y_train, y_val = X_train.T, X_val.T, y_train.T, y_val.T
+    return X_train, X_val, y_train, y_val
 
-    # initialization
+
+def l_layer_model(X, Y, layers_dims, learning_rate, num_iterations, batch_size, use_batchnorm, min_epochs):
+    X_train, X_val, y_train, y_val = split_data(X, Y)
+
     parameters = initialize_parameters([X.shape[0]] + layers_dims)
-    costs = []
-    accs_per_100_iterations = []
-    costs_per_100_iterations = []
-    train_accs_pre_100_iterations = []
 
-    iterations_counter = 0
-    epoch_counter = 0
-    val_acc_no_improvement_count = 0
-    best_val_acc_value = 0
+    iteration_counter = 0
+    best_validation_acc = 0
+    validation_acc_not_improved = 0
+    parameter_saver = list()
 
-    while iterations_counter < num_iterations:
+    for epoch in range(min_epochs):
         for X_batch, Y_batch in next_batch(X_train, y_train, batch_size):
-            # forward pass
             AL, caches = l_model_forward(X_batch, parameters, use_batchnorm)
-
-            # compute the cost and document it
             cost = compute_cost(AL, Y_batch)
-            costs.append({"cost": cost, "AL": AL, "Y": Y_batch})
+            gradients = l_model_backward(AL, Y_batch, caches)
+            parameters = update_parameters(parameters, gradients, learning_rate)
 
-            # backward pass
-            grads = l_model_backward(AL, Y_batch, caches)
+            validation_acc = predict(X_val, y_val, parameters)
+            #train_acc = predict(X_train, y_train, parameters)
 
-            # update parameters
-            parameters = update_parameters(parameters, grads, learning_rate)
+            parameter_saver.append(
+                {"iteration": iteration_counter,
+                 "epoch": epoch,
+                 "cost": cost,
+                 "validation_acc": validation_acc})
 
-            iterations_counter += 1
+            if iteration_counter % 100 == 0:
+                print(f'iteration: {iteration_counter} | cost: {cost} | val_acc: {validation_acc}')
 
-            # document performance every 100 iterations
-            val_acc = predict(X_val, y_val, parameters)
-            if iterations_counter % 100 == 0:
-                accs_per_100_iterations.append(val_acc)
-                train_acc = predict(X_train, y_train, parameters)
-                train_accs_pre_100_iterations.append(train_acc)
-                costs_per_100_iterations.append(cost)
-                print('iteration step: {} | cost: {} | val_acc: {}'.format(iterations_counter, cost, val_acc))
+            if validation_acc > best_validation_acc:
+                best_validation_acc = validation_acc
+                validation_acc_not_improved = 0
+            else:
+                validation_acc_not_improved += 1
 
-            # check if accuracy improved
-            if val_acc > best_val_acc_value:
-                best_val_acc_value = val_acc
-                val_acc_no_improvement_count = 0
-            val_acc_no_improvement_count += 1
+            if validation_acc_not_improved >= 100:
+                return parameters, parameter_saver
 
-            # check stop criteria
-            if val_acc_no_improvement_count >= 100 and epoch_counter >= min_epochs:
-                train_acc = predict(X_train, y_train, parameters)
-                val_acc = predict(X_val, y_val, parameters)
-                return parameters, costs_per_100_iterations, accs_per_100_iterations, train_accs_pre_100_iterations, train_acc, val_acc
-        epoch_counter += 1
+            iteration_counter += 1
 
-    train_acc = predict(X_train, y_train, parameters)
-    val_acc = predict(X_val, y_val, parameters)
-    return parameters, costs_per_100_iterations, accs_per_100_iterations, train_accs_pre_100_iterations, train_acc, val_acc
+    return parameters, parameter_saver
 
 
 def predict(X, Y, parameters):
