@@ -317,7 +317,6 @@ if __name__ == '__main__':
                         "batch_size": batch_size,
                         "iterations": len(cost_parameter_saver) * 100,
                         "cost": cost_parameter_saver[-1],
-                        "train_acc": predict(X_train.T, X_train.T, parameters),
                         "test_acc": predict(X_test.T, y_test.T, parameters)}
 
         results.append(results_dict)
