@@ -4,7 +4,6 @@ import sys
 import keras
 import numpy as np
 from keras.datasets import mnist
-from sklearn.model_selection import train_test_split
 
 
 def initialize_parameters(layer_dims):
@@ -173,7 +172,7 @@ def l_model_backward(AL, Y, caches):
         dA_temp = grads["dA" + str(layer_number + 1)]
 
         if 'dropout_mask' in tmp_cache:
-            dA_temp = dropout_backward(grads["dA" + str(layer_number + 1)], tmp_cache['dropout_mask'])
+            dA_temp = dropout_backward(dA_temp, tmp_cache['dropout_mask'])
 
         tmp_cache["Y"] = Y
         (dA_prev_temp,
@@ -199,19 +198,37 @@ def update_parameters(parameters, grads, learning_rate):
 
 
 def dropout_forward(X, prob):
+    """
+    Applies the forward dropout function
+    @param X: The activations to apply the dropout on
+    @param prob: The probability to apply the dropout
+    @return:
+        out - The activations after the dropout
+        mask - The mask used for dropout, in order to cache
+    """
     mask = (np.random.rand(*X.shape) < prob) / prob
     out = X * mask
     return out, mask
 
 
 def dropout_backward(dX, mask):
+    """
+    Applies the backward dropout function
+    @param dX: The derivative to apply the dropout on
+    @param mask: The cached mask from the forward dropout process
+    @return: The dropped-out activation
+    """
     dX = dX * mask
     return dX
 
 
-def next_batch(X, Y, batch_size=1):
+def next_batch(X, Y, batch_size):
     """
-    Yields the next batch for the model
+    Generates batches for X and Y sets
+    @param X: The training values
+    @param Y: The real target values
+    @param batch_size: The batch size to use
+    @return: Touple of (X,Y) of the next batch
     """
     num_of_examples = X.shape[1]
     for next_batch_idx in range(0, num_of_examples, batch_size):
@@ -221,12 +238,20 @@ def next_batch(X, Y, batch_size=1):
 
 def split_data(X, Y):
     """
-    Creates a split for the data
+    Creates a train/val split for the data
+    @param X: The train values
+    @param Y: The target values
+    @return:
+        X_train, X_val, y_train, y_val - The values after the split
     """
-    X_train, X_val, y_train, y_val = train_test_split(X.T, Y.T,
-                                                      test_size=0.2,
-                                                      stratify=Y.T, random_state=42)
-    X_train, X_val, y_train, y_val = X_train.T, X_val.T, y_train.T, y_val.T
+    msk = np.random.rand(X.shape[1]) < 0.8
+
+    X_train = X[:, msk]
+    X_val = X[:, ~msk]
+
+    y_train = Y[:, msk]
+    y_val = Y[:, ~msk]
+
     return X_train, X_val, y_train, y_val
 
 
